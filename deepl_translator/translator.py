@@ -264,19 +264,19 @@ class CustomDeepLCLI(DeepLCLI):
                 """
                 () => document.querySelector(
                 'textarea[dl-test=translator-target-input]').value !== ""
-            """
+            """, timeout=150000
             )
 
             await self.page.waitForFunction(
                 """
                 () => !document.querySelector(
                 'textarea[dl-test=translator-target-input]').value.includes("[...]")
-            """
+            """, timeout=150000
             )
             await self.page.waitForFunction(
                 """
                 () => document.querySelector("[dl-test='translator-source-input']") !== null
-            """
+            """, timeout=150000
             )
             # await page.waitForFunction(
             #     """
@@ -311,6 +311,7 @@ class CustomDeepLCLI(DeepLCLI):
             document.getElementById('translator-source-clear-button').click()
             """
         )
+        await asyncio.sleep(1)
 
         if type(res) is str:
             return res.rstrip("\n")
