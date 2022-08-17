@@ -186,12 +186,17 @@ class CustomDeepLCLI(DeepLCLI):
                  fr_lang: str,
                  to_lang: str,
                  headless: bool = False,
-                 executable_path: str = None):
+                 executable_path: str = None,
+                 timeout: int = 150000,
+                 sleep_secs: int = 1):
+
         super().__init__(fr_lang, to_lang)
         self.browser: Optional[Browser] = None
         self.is_started = False
         self.headless = headless
         self.executable_path: Optional[str] = executable_path
+        self.timeout = timeout
+        self.sleep_secs = sleep_secs
         self.loop = asyncio.get_event_loop()
         self.page: Optional[Page] = None
 
@@ -227,11 +232,11 @@ class CustomDeepLCLI(DeepLCLI):
             )
             await self.page.setUserAgent(userAgent)
             hash = f"#{self.fr_lang}/{self.to_lang}"
-            await self.page.goto("https://www.deepl.com/translator")
+            await self.page.goto("https://www.deepl.com/translator" + hash)
             try:
-                self.page.waitForSelector("#dl_translator > div.lmt__text", timeout=150000)
+                self.page.waitForSelector("#dl_translator > div.lmt__text", timeout=self.timeout)
             except TimeoutError:
-                raise DeepLCLIPageLoadError("Time limit exceeded. (30000ms)")
+                raise DeepLCLIPageLoadError(f"Time limit exceeded. ({self.timeout}ms)")
 
     def translate(self, script: str) -> str:
         # if not self.internet_on():
@@ -245,38 +250,38 @@ class CustomDeepLCLI(DeepLCLI):
         if not self.is_started:
             while not self.is_started:
                 await self.start_browser()
-                await asyncio.sleep(1)
+                await asyncio.sleep(self.sleep_secs)
 
         hash = f"#{self.fr_lang}/{self.to_lang}"
-        await self.page.goto("https://www.deepl.com/translator")
+        await self.page.goto(f"https://www.deepl.com/translator" + hash)
 
         try:
-            await self.page.waitForSelector("#dl_translator > div.lmt__text", timeout=150000)
+            await self.page.waitForSelector("#dl_translator > div.lmt__text", timeout=self.timeout)
         except TimeoutError:
-            raise DeepLCLIPageLoadError("Time limit exceeded. (30000ms)")
+            raise DeepLCLIPageLoadError(f"Time limit exceeded. ({self.timeout}ms)")
 
         await self.page.click(selector="textarea")
         await self.page.type('textarea', script)
-        await asyncio.sleep(1)
+        await asyncio.sleep(self.sleep_secs)
 
         try:
             await self.page.waitForFunction(
                 """
                 () => document.querySelector(
                 'textarea[dl-test=translator-target-input]').value !== ""
-            """, timeout=150000
+            """, timeout=self.timeout
             )
 
             await self.page.waitForFunction(
                 """
                 () => !document.querySelector(
                 'textarea[dl-test=translator-target-input]').value.includes("[...]")
-            """, timeout=150000
+            """, timeout=self.timeout
             )
             await self.page.waitForFunction(
                 """
                 () => document.querySelector("[dl-test='translator-source-input']") !== null
-            """, timeout=150000
+            """, timeout=self.timeout
             )
             # await page.waitForFunction(
             #     """
@@ -284,9 +289,9 @@ class CustomDeepLCLI(DeepLCLI):
             # """
             # )
         except TimeoutError:
-            raise DeepLCLIPageLoadError("Time limit exceeded. (30000ms)")
+            raise DeepLCLIPageLoadError(f"Time limit exceeded. ({self.timeout}ms)")
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(self.sleep_secs)
         output_area = await self.page.J('textarea[dl-test="translator-target-input"]')
         res = await self.page.evaluate("elm => elm.value", output_area)
         self.translated_fr_lang = str(
@@ -311,7 +316,7 @@ class CustomDeepLCLI(DeepLCLI):
             document.getElementById('translator-source-clear-button').click()
             """
         )
-        await asyncio.sleep(1)
+        await asyncio.sleep(self.sleep_secs)
 
         if type(res) is str:
             return res.rstrip("\n")
